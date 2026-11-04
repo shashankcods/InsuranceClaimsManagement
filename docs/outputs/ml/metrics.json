@@ -1,0 +1,121 @@
+{
+  "trained_at": "2026-11-04T22:49:01",
+  "selected_model": "Random forest",
+  "threshold": 0.505,
+  "n_resolved": 2353,
+  "n_positive": 210,
+  "n_train": 1882,
+  "n_test": 471,
+  "cv": {
+    "Logistic regression": {
+      "cv_roc_auc_mean": 0.9089,
+      "cv_roc_auc_std": 0.0196
+    },
+    "Random forest": {
+      "cv_roc_auc_mean": 0.9329,
+      "cv_roc_auc_std": 0.0095
+    },
+    "Hist. gradient boosting": {
+      "cv_roc_auc_mean": 0.9135,
+      "cv_roc_auc_std": 0.0151
+    }
+  },
+  "test": {
+    "roc_auc": 0.948,
+    "pr_auc": 0.776,
+    "precision": 0.8158,
+    "recall": 0.7381,
+    "f1": 0.775,
+    "base_rate": 0.0892,
+    "confusion_matrix": {
+      "tn": 422,
+      "fp": 7,
+      "fn": 11,
+      "tp": 31
+    }
+  },
+  "permutation_importance": [
+    {
+      "feature": "filing_delay",
+      "importance": 0.0948,
+      "std": 0.008
+    },
+    {
+      "feature": "documents_attached",
+      "importance": 0.0538,
+      "std": 0.0093
+    },
+    {
+      "feature": "non_network_provider",
+      "importance": 0.0347,
+      "std": 0.008
+    },
+    {
+      "feature": "late_payments",
+      "importance": 0.01,
+      "std": 0.0026
+    },
+    {
+      "feature": "claim_ratio",
+      "importance": 0.0088,
+      "std": 0.0081
+    },
+    {
+      "feature": "claim_type",
+      "importance": 0.0058,
+      "std": 0.0044
+    },
+    {
+      "feature": "customer_age",
+      "importance": 0.0015,
+      "std": 0.0045
+    },
+    {
+      "feature": "policy_type",
+      "importance": 0.0003,
+      "std": 0.0021
+    },
+    {
+      "feature": "prior_claims",
+      "importance": -0.0015,
+      "std": 0.0022
+    },
+    {
+      "feature": "days_since_start",
+      "importance": -0.0024,
+      "std": 0.0051
+    },
+    {
+      "feature": "days_to_end",
+      "importance": -0.0034,
+      "std": 0.0043
+    },
+    {
+      "feature": "claimed_amount",
+      "importance": -0.0066,
+      "std": 0.0048
+    }
+  ],
+  "features": [
+    "claimed_amount",
+    "claim_ratio",
+    "days_since_start",
+    "days_to_end",
+    "filing_delay",
+    "customer_age",
+    "prior_claims",
+    "late_payments",
+    "documents_attached",
+    "non_network_provider",
+    "claim_type",
+    "policy_type"
+  ],
+  "charts": [
+    "roc_curve.png",
+    "pr_curve.png",
+    "confusion_matrix.png",
+    "feature_importance.png"
+  ],
+  "note": "Synthetic data with a built-in fraud signal: metrics demonstrate the pipeline, not real-world accuracy.",
+  "model_id": 1
+}

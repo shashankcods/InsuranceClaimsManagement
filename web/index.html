@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Insurance Back Office</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Insurance &amp; Claims DB</div>
+    <nav id="nav">
+      <a href="#dashboard" data-view="dashboard">Dashboard</a>
+      <a href="#claims" data-view="claims">Claims</a>
+      <a href="#policies" data-view="policies">Policies</a>
+      <a href="#customers" data-view="customers">Customers</a>
+      <a href="#premiums" data-view="premiums">Premiums</a>
+      <a href="#reports" data-view="reports">Reports</a>
+      <a href="#fraud" data-view="fraud">Fraud model</a>
+      <div class="menu" tabindex="0">
+        <span class="menu-label">Master data ▾</span>
+        <div class="menu-items">
+          <a href="#agents" data-view="agents">Agents</a>
+          <a href="#providers" data-view="providers">Providers</a>
+          <a href="#adjusters" data-view="adjusters">Adjusters</a>
+          <a href="#policy-types" data-view="policy-types">Policy types</a>
+          <a href="#pincodes" data-view="pincodes">Pincodes</a>
+        </div>
+      </div>
+    </nav>
+    <a class="api-link" href="/docs" target="_blank">API docs</a>
+  </header>
+  <main id="main"></main>
+
+  <div id="drawer" class="drawer hidden">
+    <div class="drawer-panel">
+      <button class="drawer-close" onclick="closeDrawer()" aria-label="Close">&times;</button>
+      <div id="drawer-body"></div>
+    </div>
+  </div>
+  <div id="modal" class="modal hidden">
+    <div class="modal-panel">
+      <div id="modal-body"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>

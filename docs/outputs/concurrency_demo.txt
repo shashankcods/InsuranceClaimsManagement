@@ -1,0 +1,15 @@
+[  0.11s] setup      --- Demo A: two sessions approve claim 2461 at the same time ---
+[  0.18s] session1   locked claim, status = UNDER_REVIEW
+[  0.19s] session1   approved inside the open transaction (not committed yet)
+[  0.19s] session2   CALL sp_approve_claim(...) -> waits for the row lock
+[  2.19s] session1   COMMIT (lock released)
+[  2.19s] session2   blocked 2.00s, then failed: errno 1644: Claim 2461 is APPROVED, expected UNDER_REVIEW
+[  2.19s] check      APPROVED assessments on the claim: 1 (exactly one)
+[  2.19s] setup      --- Demo B: deadlock on claims 2462 and 2463 ---
+[  2.27s] session1   locked claim 2462
+[  2.27s] session2   locked claim 2463
+[  2.77s] session1   requesting lock on claim 2463
+[  2.77s] session2   requesting lock on claim 2462
+[  2.77s] session1   got both locks, COMMIT
+[  2.77s] session2   ROLLED BACK by InnoDB: errno 1213: Deadlock found when trying to get lock; try restarting transaction
+[  2.81s] cleanup    removed 3 demo claims

@@ -1,0 +1,546 @@
+--------------
+DROP PROCEDURE IF EXISTS demo_cleanup
+--------------
+
+Query OK, 0 rows affected, 1 warning (0.00 sec)
+
+--------------
+CREATE PROCEDURE demo_cleanup(IN p_email VARCHAR(120))
+BEGIN
+    
+    
+    DELETE po FROM claim_payout po JOIN claim c ON c.claim_id = po.claim_id
+      JOIN policy p ON p.policy_id = c.policy_id JOIN customer cu ON cu.customer_id = p.customer_id
+     WHERE cu.email = p_email;
+    DELETE c FROM claim c JOIN policy p ON p.policy_id = c.policy_id
+      JOIN customer cu ON cu.customer_id = p.customer_id WHERE cu.email = p_email;
+    DELETE p FROM policy p JOIN customer cu ON cu.customer_id = p.customer_id WHERE cu.email = p_email;
+    DELETE FROM customer WHERE email = p_email;
+END
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+SET @demo_email = 'rule.demo@example.com'
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+CALL demo_cleanup(@demo_email)
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+INSERT INTO customer (first_name, last_name, dob, gender, email, phone, address_line, pincode)
+VALUES ('Rule', 'Demo', '1990-01-01', 'M', @demo_email, '9000000001', '1, MNNIT Campus', '211004')
+--------------
+
+Query OK, 1 row affected (0.00 sec)
+
+--------------
+SELECT * FROM v_customer_directory WHERE customer_id = LAST_INSERT_ID()
+--------------
+
++-------------+------------+-----------+------------+--------+-----------------------+------------+-----------------+---------+-----------+---------------+---------------------+
+| customer_id | first_name | last_name | dob        | gender | email                 | phone      | address_line    | pincode | city      | state         | created_at          |
++-------------+------------+-----------+------------+--------+-----------------------+------------+-----------------+---------+-----------+---------------+---------------------+
+|        1602 | Rule       | Demo      | 1990-01-01 | M      | rule.demo@example.com | 9000000001 | 1, MNNIT Campus | 211004  | Prayagraj | Uttar Pradesh | 2026-11-04 22:48:35 |
++-------------+------------+-----------+------------+--------+-----------------------+------------+-----------------+---------+-----------+---------------+---------------------+
+1 row in set (0.00 sec)
+
+--------------
+SELECT customer_id INTO @cust FROM customer WHERE email = @demo_email
+--------------
+
+Query OK, 1 row affected (0.00 sec)
+
+--------------
+CALL sp_sell_policy(@cust, 1, 1, DATE_SUB(CURRENT_DATE, INTERVAL 60 DAY), 12, 500000, 'ANNUAL', @pol, @polno)
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+SELECT policy_id, policy_number, sum_assured, premium_amount, status FROM policy WHERE policy_id = @pol
+--------------
+
++-----------+-----------------+-------------+----------------+--------+
+| policy_id | policy_number   | sum_assured | premium_amount | status |
++-----------+-----------------+-------------+----------------+--------+
+|      3501 | POL-2026-003501 |   500000.00 |       21280.00 | ACTIVE |
++-----------+-----------------+-------------+----------------+--------+
+1 row in set (0.00 sec)
+
+--------------
+SELECT payment_id, instalment_no, due_date, amount, status FROM premium_payment WHERE policy_id = @pol
+--------------
+
++------------+---------------+------------+----------+---------+
+| payment_id | instalment_no | due_date   | amount   | status  |
++------------+---------------+------------+----------+---------+
+|      10485 |             1 | 2026-09-05 | 21280.00 | PENDING |
++------------+---------------+------------+----------+---------+
+1 row in set (0.00 sec)
+
+--------------
+UPDATE premium_payment SET status = 'PAID', paid_on = CURRENT_DATE, method = 'UPI' WHERE policy_id = @pol
+--------------
+
+Query OK, 1 row affected (0.00 sec)
+Rows matched: 1  Changed: 1  Warnings: 0
+
+--------------
+CALL sp_sell_policy(@cust, 1, 1, CURRENT_DATE, 12, 99000000, 'ANNUAL', @x, @y)
+--------------
+
+ERROR 1644 (45000) at line 41: Sum assured 99000000.00 is outside the product range 100000.00 - 2500000.00
+--------------
+INSERT INTO pincode (pincode, city, state) VALUES ('21A00', 'Prayagraj', 'Uttar Pradesh')
+--------------
+
+ERROR 3819 (HY000) at line 44: Check constraint 'ck_pincode_format' is violated.
+--------------
+UPDATE premium_payment SET status = 'PAID', paid_on = NULL WHERE policy_id = @pol
+--------------
+
+ERROR 3819 (HY000) at line 45: Check constraint 'ck_payment_paid_on' is violated.
+--------------
+INSERT INTO customer (first_name, last_name, dob, gender, email, phone, address_line, pincode)
+VALUES ('No', 'Pin', '1990-01-01', 'M', 'no.pin@example.com', '9000000002', 'x', '999999')
+--------------
+
+ERROR 1452 (23000) at line 47: Cannot add or update a child row: a foreign key constraint fails (`insurance_db`.`customer`, CONSTRAINT `fk_customer_pincode` FOREIGN KEY (`pincode`) REFERENCES `pincode` (`pincode`) ON DELETE RESTRICT ON UPDATE CASCADE)
+--------------
+CALL sp_file_claim(@pol, 1, 'HOSPITALISATION', DATE_SUB(CURRENT_DATE, INTERVAL 400 DAY), 50000, 'BR2 demo', @c, @cn)
+--------------
+
+ERROR 1644 (45000) at line 52: BR2: incident date 2025-09-30 is outside the policy period 2026-09-05 to 2027-09-04
+--------------
+CALL sp_file_claim(@pol, 1, 'HOSPITALISATION', DATE_SUB(CURRENT_DATE, INTERVAL 10 DAY), 600000, 'BR3 demo', @c, @cn)
+--------------
+
+ERROR 1644 (45000) at line 54: BR3: claimed amount 600000.00 exceeds the sum assured 500000.00
+--------------
+CALL sp_file_claim(@pol, 1, 'HOSPITALISATION', DATE_SUB(CURRENT_DATE, INTERVAL 10 DAY), 300000, 'Appendix surgery', @claim1, @cn1)
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+SELECT claim_id, claim_number, status, claimed_amount FROM claim WHERE claim_id = @claim1
+--------------
+
++----------+-----------------+-----------+----------------+
+| claim_id | claim_number    | status    | claimed_amount |
++----------+-----------------+-----------+----------------+
+|     2456 | CLM-2026-002456 | SUBMITTED |      300000.00 |
++----------+-----------------+-----------+----------------+
+1 row in set (0.00 sec)
+
+--------------
+UPDATE claim SET status = 'APPROVED' WHERE claim_id = @claim1
+--------------
+
+ERROR 1644 (45000) at line 61: BR4: illegal status change SUBMITTED -> APPROVED
+--------------
+UPDATE claim SET status = 'UNDER_REVIEW' WHERE claim_id = @claim1
+--------------
+
+ERROR 1644 (45000) at line 62: BR4: a claim needs an adjuster before review
+--------------
+CALL sp_start_review(@claim1, 1)
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+SELECT claim_id, status, adjuster_id FROM claim WHERE claim_id = @claim1
+--------------
+
++----------+--------------+-------------+
+| claim_id | status       | adjuster_id |
++----------+--------------+-------------+
+|     2456 | UNDER_REVIEW |           1 |
++----------+--------------+-------------+
+1 row in set (0.00 sec)
+
+--------------
+UPDATE claim SET claimed_amount = 1 WHERE claim_id = @claim1
+--------------
+
+ERROR 1644 (45000) at line 65: Claim details are frozen once review has started
+--------------
+CALL sp_request_info(@claim1, 1, 'Please upload the discharge summary')
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+SELECT c.status, a.decision, a.remarks FROM claim c JOIN claim_assessment a ON a.claim_id = c.claim_id
+ WHERE c.claim_id = @claim1
+--------------
+
++--------------+------------+-------------------------------------+
+| status       | decision   | remarks                             |
++--------------+------------+-------------------------------------+
+| UNDER_REVIEW | NEEDS_INFO | Please upload the discharge summary |
++--------------+------------+-------------------------------------+
+1 row in set (0.00 sec)
+
+--------------
+CALL sp_approve_claim(@claim1, 1, 300000, 'over the adjuster limit')
+--------------
+
+ERROR 1644 (45000) at line 72: BR5: approved amount 300000.00 exceeds the adjuster approval limit 200000.00
+--------------
+CALL sp_approve_claim(@claim1, 15, 350000, 'over the claimed amount')
+--------------
+
+ERROR 1644 (45000) at line 73: BR5: approved amount 350000.00 exceeds the claimed amount 300000.00
+--------------
+INSERT INTO claim_payout (claim_id, amount, reference_no) VALUES (@claim1, 100, 'DEMO-EARLY')
+--------------
+
+ERROR 1644 (45000) at line 76: BR6: only an APPROVED claim can be paid (current: UNDER_REVIEW)
+--------------
+CALL sp_approve_claim(@claim1, 12, 250000, 'Approved after document check')
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+INSERT INTO claim_payout (claim_id, amount, reference_no) VALUES (@claim1, 260000, 'DEMO-OVER')
+--------------
+
+ERROR 1644 (45000) at line 78: BR6: payout 260000.00 exceeds the approved amount 250000.00
+--------------
+CALL sp_pay_claim(@claim1, 'NEFT', @payout1, @ref1)
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+SELECT c.claim_id, c.status, po.amount, po.reference_no
+  FROM claim c JOIN claim_payout po ON po.claim_id = c.claim_id WHERE c.claim_id = @claim1
+--------------
+
++----------+--------+-----------+---------------------+
+| claim_id | status | amount    | reference_no        |
++----------+--------+-----------+---------------------+
+|     2456 | PAID   | 250000.00 | PAY-20261104-002456 |
++----------+--------+-----------+---------------------+
+1 row in set (0.00 sec)
+
+--------------
+CALL sp_file_claim(@pol, 1, 'HOSPITALISATION', DATE_SUB(CURRENT_DATE, INTERVAL 5 DAY), 300000, 'Second admission', @claim2, @cn2)
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+CALL sp_start_review(@claim2, 15)
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+CALL sp_approve_and_pay_claim(@claim2, 15, 300000, 'full amount', 'NEFT', @payout2, @ref2)
+--------------
+
+ERROR 1644 (45000) at line 92: BR6: total payouts 550000.00 would exceed the sum assured 500000.00
+--------------
+SELECT claim_id, status FROM claim WHERE claim_id = @claim2
+--------------
+
++----------+--------------+
+| claim_id | status       |
++----------+--------------+
+|     2457 | UNDER_REVIEW |
++----------+--------------+
+1 row in set (0.00 sec)
+
+--------------
+SELECT COUNT(*) AS assessments_left_behind FROM claim_assessment WHERE claim_id = @claim2
+--------------
+
++-------------------------+
+| assessments_left_behind |
++-------------------------+
+|                       0 |
++-------------------------+
+1 row in set (0.00 sec)
+
+--------------
+CALL sp_approve_and_pay_claim(@claim2, 15, 200000, 'capped at remaining cover', 'NEFT', @payout2, @ref2)
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+SELECT c.claim_id, c.status, po.amount, @ref2 AS reference
+  FROM claim c JOIN claim_payout po ON po.claim_id = c.claim_id WHERE c.claim_id = @claim2
+--------------
+
++----------+--------+-----------+---------------------+
+| claim_id | status | amount    | reference           |
++----------+--------+-----------+---------------------+
+|     2457 | PAID   | 200000.00 | PAY-20261104-002457 |
++----------+--------+-----------+---------------------+
+1 row in set (0.00 sec)
+
+--------------
+SELECT claim_id, old_status, new_status, changed_at, changed_by
+  FROM claim_status_log WHERE claim_id IN (@claim1, @claim2) ORDER BY log_id
+--------------
+
++----------+--------------+--------------+---------------------+-------------------------+
+| claim_id | old_status   | new_status   | changed_at          | changed_by              |
++----------+--------------+--------------+---------------------+-------------------------+
+|     2456 | NULL         | SUBMITTED    | 2026-11-04 22:48:35 | insurance_app@127.0.0.1 |
+|     2456 | SUBMITTED    | UNDER_REVIEW | 2026-11-04 22:48:35 | insurance_app@127.0.0.1 |
+|     2456 | UNDER_REVIEW | APPROVED     | 2026-11-04 22:48:35 | insurance_app@127.0.0.1 |
+|     2456 | APPROVED     | PAID         | 2026-11-04 22:48:35 | insurance_app@127.0.0.1 |
+|     2457 | NULL         | SUBMITTED    | 2026-11-04 22:48:35 | insurance_app@127.0.0.1 |
+|     2457 | SUBMITTED    | UNDER_REVIEW | 2026-11-04 22:48:35 | insurance_app@127.0.0.1 |
+|     2457 | UNDER_REVIEW | APPROVED     | 2026-11-04 22:48:35 | insurance_app@127.0.0.1 |
+|     2457 | APPROVED     | PAID         | 2026-11-04 22:48:35 | insurance_app@127.0.0.1 |
++----------+--------------+--------------+---------------------+-------------------------+
+8 rows in set (0.00 sec)
+
+--------------
+START TRANSACTION
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+INSERT INTO nominee (policy_id, full_name, relationship, share_pct) VALUES (@pol, 'Asha Demo', 'SPOUSE', 50)
+--------------
+
+Query OK, 1 row affected (0.00 sec)
+
+--------------
+SAVEPOINT after_spouse
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+INSERT INTO nominee (policy_id, full_name, relationship, share_pct) VALUES (@pol, 'Wrong Entry', 'OTHER', 30)
+--------------
+
+Query OK, 1 row affected (0.00 sec)
+
+--------------
+ROLLBACK TO SAVEPOINT after_spouse
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+INSERT INTO nominee (policy_id, full_name, relationship, share_pct) VALUES (@pol, 'Ravi Demo', 'SON', 40)
+--------------
+
+Query OK, 1 row affected (0.00 sec)
+
+--------------
+COMMIT
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+SELECT full_name, relationship, share_pct FROM nominee WHERE policy_id = @pol
+--------------
+
++-----------+--------------+-----------+
+| full_name | relationship | share_pct |
++-----------+--------------+-----------+
+| Asha Demo | SPOUSE       |     50.00 |
+| Ravi Demo | SON          |     40.00 |
++-----------+--------------+-----------+
+2 rows in set (0.00 sec)
+
+--------------
+INSERT INTO nominee (policy_id, full_name, relationship, share_pct) VALUES (@pol, 'Too Much', 'DAUGHTER', 20)
+--------------
+
+ERROR 1644 (45000) at line 116: BR8: nominee shares for policy 3501 would total 110.00%
+--------------
+UPDATE nominee SET share_pct = 70 WHERE policy_id = @pol AND full_name = 'Ravi Demo'
+--------------
+
+ERROR 1644 (45000) at line 117: BR8: nominee shares for policy 3501 would total 120.00%
+--------------
+INSERT INTO nominee (policy_id, full_name, relationship, share_pct) VALUES (@pol, 'Meena Demo', 'DAUGHTER', 10)
+--------------
+
+Query OK, 1 row affected (0.00 sec)
+
+--------------
+SELECT SUM(share_pct) AS total_share FROM nominee WHERE policy_id = @pol
+--------------
+
++-------------+
+| total_share |
++-------------+
+|      100.00 |
++-------------+
+1 row in set (0.00 sec)
+
+--------------
+CALL sp_sell_policy(@cust, 2, 1, DATE_SUB(CURRENT_DATE, INTERVAL 200 DAY), 12, 600000, 'QUARTERLY', @polB, @polBno)
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+--------------
+CALL sp_generate_instalments(CURRENT_DATE, @created)
+--------------
+
+Query OK, 0 rows affected (0.12 sec)
+
+--------------
+SELECT @created AS instalments_created_by_batch
+--------------
+
++------------------------------+
+| instalments_created_by_batch |
++------------------------------+
+|                            2 |
++------------------------------+
+1 row in set (0.00 sec)
+
+--------------
+SELECT payment_id, instalment_no, due_date, status FROM premium_payment WHERE policy_id = @polB ORDER BY instalment_no
+--------------
+
++------------+---------------+------------+---------+
+| payment_id | instalment_no | due_date   | status  |
++------------+---------------+------------+---------+
+|      10486 |             1 | 2026-04-18 | PENDING |
+|      10487 |             2 | 2026-07-18 | PENDING |
+|      10488 |             3 | 2026-10-18 | PENDING |
++------------+---------------+------------+---------+
+3 rows in set (0.00 sec)
+
+--------------
+CALL sp_lapse_overdue_policies(30, @lapsed)
+--------------
+
+Query OK, 0 rows affected (0.01 sec)
+
+--------------
+SELECT @lapsed AS policies_lapsed, (SELECT status FROM policy WHERE policy_id = @polB) AS policy_b_status
+--------------
+
++-----------------+-----------------+
+| policies_lapsed | policy_b_status |
++-----------------+-----------------+
+|               1 | LAPSED          |
++-----------------+-----------------+
+1 row in set (0.00 sec)
+
+--------------
+CALL sp_file_claim(@polB, 80, 'VEHICLE_DAMAGE', DATE_SUB(CURRENT_DATE, INTERVAL 3 DAY), 40000, 'BR1 demo', @c, @cn)
+--------------
+
+ERROR 1644 (45000) at line 131: BR1: cannot file a claim on a LAPSED policy
+--------------
+SELECT MIN(payment_id), MAX(payment_id) INTO @firstB, @lastB FROM premium_payment
+ WHERE policy_id = @polB AND due_date < CURRENT_DATE
+--------------
+
+Query OK, 1 row affected (0.00 sec)
+
+--------------
+CALL sp_pay_premium(@firstB, 'UPI')
+--------------
+
+Query OK, 0 rows affected (0.01 sec)
+
+--------------
+SELECT status AS after_first_payment FROM policy WHERE policy_id = @polB
+--------------
+
++---------------------+
+| after_first_payment |
++---------------------+
+| LAPSED              |
++---------------------+
+1 row in set (0.00 sec)
+
+--------------
+UPDATE premium_payment SET status = 'PAID', paid_on = CURRENT_DATE, method = 'UPI'
+ WHERE policy_id = @polB AND due_date < CURRENT_DATE AND status <> 'PAID'
+--------------
+
+Query OK, 2 rows affected (0.00 sec)
+Rows matched: 2  Changed: 2  Warnings: 0
+
+--------------
+SELECT status AS after_all_overdue_paid FROM policy WHERE policy_id = @polB
+--------------
+
++------------------------+
+| after_all_overdue_paid |
++------------------------+
+| ACTIVE                 |
++------------------------+
+1 row in set (0.00 sec)
+
+--------------
+UPDATE policy SET status = 'CANCELLED' WHERE policy_id = @polB
+--------------
+
+Query OK, 1 row affected (0.00 sec)
+Rows matched: 1  Changed: 1  Warnings: 0
+
+--------------
+CALL sp_file_claim(@polB, 80, 'VEHICLE_DAMAGE', DATE_SUB(CURRENT_DATE, INTERVAL 3 DAY), 40000, 'BR1 demo', @c, @cn)
+--------------
+
+ERROR 1644 (45000) at line 144: BR1: cannot file a claim on a CANCELLED policy
+--------------
+INSERT INTO claim_document (claim_id, doc_type, file_name) VALUES (999999, 'PHOTO', 'x.jpg')
+--------------
+
+ERROR 1452 (23000) at line 147: Cannot add or update a child row: a foreign key constraint fails (`insurance_db`.`claim_document`, CONSTRAINT `fk_doc_claim` FOREIGN KEY (`claim_id`) REFERENCES `claim` (`claim_id`) ON DELETE CASCADE ON UPDATE CASCADE)
+--------------
+DELETE FROM policy_type WHERE type_id = 1
+--------------
+
+ERROR 1451 (23000) at line 148: Cannot delete or update a parent row: a foreign key constraint fails (`insurance_db`.`policy`, CONSTRAINT `fk_policy_type` FOREIGN KEY (`type_id`) REFERENCES `policy_type` (`type_id`) ON DELETE RESTRICT ON UPDATE CASCADE)
+--------------
+INSERT INTO customer (first_name, last_name, dob, gender, email, phone, address_line, pincode)
+VALUES ('Dup', 'Email', '1990-01-01', 'M', @demo_email, '9000000003', 'x', '211004')
+--------------
+
+ERROR 1062 (23000) at line 149: Duplicate entry 'rule.demo@example.com' for key 'customer.uq_customer_email'
+--------------
+CALL demo_cleanup(@demo_email)
+--------------
+
+Query OK, 1 row affected (0.01 sec)
+
+--------------
+SELECT COUNT(*) AS demo_customers_left FROM customer WHERE email = @demo_email
+--------------
+
++---------------------+
+| demo_customers_left |
++---------------------+
+|                   0 |
++---------------------+
+1 row in set (0.00 sec)
+
+--------------
+DROP PROCEDURE demo_cleanup
+--------------
+
+Query OK, 0 rows affected (0.00 sec)
+
+Bye

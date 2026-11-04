@@ -1,0 +1,11 @@
+# local credentials (copy .env.example to .env)
+.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# editor / tooling
+.claude/
+.vscode/

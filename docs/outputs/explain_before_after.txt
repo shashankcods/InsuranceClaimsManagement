@@ -1,0 +1,69 @@
+=== WITHOUT secondary indexes ===
+Table	Op	Msg_type	Msg_text
+insurance_db.policy	analyze	status	OK
+insurance_db.claim	analyze	status	OK
+insurance_db.premium_payment	analyze	status	OK
+insurance_db.customer	analyze	status	OK
+insurance_db.pincode	analyze	status	OK
+query
+BEFORE: Q1 open-claims queue
+EXPLAIN
+-> Limit: 50 row(s)  (cost=248 rows=50) (actual time=0.616..0.618 rows=50 loops=1)
+    -> Sort: claim.filed_on, limit input to 50 row(s) per chunk  (cost=248 rows=2427) (actual time=0.615..0.617 rows=50 loops=1)
+        -> Filter: (claim.`status` in ('SUBMITTED','UNDER_REVIEW'))  (cost=248 rows=2427) (actual time=0.522..0.595 rows=102 loops=1)
+            -> Table scan on claim  (cost=248 rows=2427) (actual time=0.0559..0.453 rows=2455 loops=1)
+
+query
+BEFORE: Q2 overdue premiums
+EXPLAIN
+-> Filter: ((premium_payment.`status` in ('PENDING','FAILED')) and (premium_payment.due_date < <cache>(curdate())))  (cost=915 rows=685) (actual time=0.115..2.25 rows=672 loops=1)
+    -> Table scan on premium_payment  (cost=915 rows=10283) (actual time=0.109..1.49 rows=10484 loops=1)
+
+query
+BEFORE: Q3 policies expiring in 30 days
+EXPLAIN
+-> Filter: ((policy.`status` = 'ACTIVE') and (policy.end_date between <cache>(curdate()) and <cache>((curdate() + interval 30 day))))  (cost=336 rows=40.2) (actual time=0.155..1.09 rows=79 loops=1)
+    -> Table scan on policy  (cost=336 rows=3620) (actual time=0.147..0.799 rows=3500 loops=1)
+
+query
+BEFORE: Q4 customers in a city
+EXPLAIN
+-> Nested loop inner join  (cost=105 rows=169) (actual time=0.0605..0.309 rows=151 loops=1)
+    -> Filter: (p.city = 'Lucknow')  (cost=45.8 rows=45) (actual time=0.0377..0.1 rows=30 loops=1)
+        -> Table scan on p  (cost=45.8 rows=450) (actual time=0.0155..0.0825 rows=450 loops=1)
+    -> Index lookup on c using fk_customer_pincode (pincode=p.pincode)  (cost=0.95 rows=3.76) (actual time=0.00467..0.00669 rows=5.03 loops=30)
+
+
+
+=== WITH indexes from 06_indexes.sql ===
+Table	Op	Msg_type	Msg_text
+insurance_db.policy	analyze	status	OK
+insurance_db.claim	analyze	status	OK
+insurance_db.premium_payment	analyze	status	OK
+insurance_db.customer	analyze	status	OK
+insurance_db.pincode	analyze	status	OK
+query
+AFTER: Q1 open-claims queue
+EXPLAIN
+-> Limit: 50 row(s)  (cost=46.4 rows=50) (actual time=0.162..0.166 rows=50 loops=1)
+    -> Sort: claim.filed_on, limit input to 50 row(s) per chunk  (cost=46.4 rows=102) (actual time=0.162..0.163 rows=50 loops=1)
+        -> Index range scan on claim using idx_claim_status_filed over (status = 'SUBMITTED') OR (status = 'UNDER_REVIEW'), with index condition: (claim.`status` in ('SUBMITTED','UNDER_REVIEW'))  (cost=46.4 rows=102) (actual time=0.0279..0.134 rows=102 loops=1)
+
+query
+AFTER: Q2 overdue premiums
+EXPLAIN
+-> Index range scan on premium_payment using idx_payment_status_due over (status = 'FAILED' AND due_date < '2026-11-04') OR (status = 'PENDING' AND due_date < '2026-11-04'), with index condition: ((premium_payment.`status` in ('PENDING','FAILED')) and (premium_payment.due_date < <cache>(curdate())))  (cost=303 rows=672) (actual time=0.0872..0.687 rows=672 loops=1)
+
+query
+AFTER: Q3 policies expiring in 30 days
+EXPLAIN
+-> Filter: ((policy.`status` = 'ACTIVE') and (policy.end_date between <cache>(curdate()) and <cache>((curdate() + interval 30 day))))  (cost=17.1 rows=79) (actual time=0.014..0.039 rows=79 loops=1)
+    -> Covering index range scan on policy using idx_policy_status_end over (status = 'ACTIVE' AND '2026-11-04' <= end_date <= '2026-12-04')  (cost=17.1 rows=79) (actual time=0.0122..0.0288 rows=79 loops=1)
+
+query
+AFTER: Q4 customers in a city
+EXPLAIN
+-> Nested loop inner join  (cost=43 rows=113) (actual time=0.0236..0.213 rows=151 loops=1)
+    -> Covering index lookup on p using idx_pincode_city (city='Lucknow')  (cost=3.48 rows=30) (actual time=0.0092..0.0146 rows=30 loops=1)
+    -> Index lookup on c using fk_customer_pincode (pincode=p.pincode)  (cost=0.954 rows=3.76) (actual time=0.00439..0.00638 rows=5.03 loops=30)
+
